@@ -182,6 +182,10 @@ abstract class SparkPlan
     }
   }
 
+  /**
+   * Here use ReenttrantLock instead of synchronized to narrow the lock scope
+   * and eliminate the potential dead lock.
+   */
   private val lock = new ReentrantLock()
 
   /**

@@ -18,7 +18,6 @@
 package org.apache.spark.sql.execution.exchange
 
 import scala.collection.mutable.ArrayBuffer
-
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.catalyst.rules.Rule
@@ -35,9 +34,12 @@ import org.apache.spark.sql.internal.SQLConf
  * the input partition ordering requirements are met.
  */
 case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
-  private def defaultNumPreShufflePartitions: Int =
+  private def defaultNumPreShufflePartitions(child: SparkPlan): Int =
     if (conf.adaptiveExecutionEnabled) {
-      conf.maxNumPostShufflePartitions
+      var totalBytes: BigInt = 0
+      // Count the statistics of leaf node
+      child.foreach(child => if (child.children.length == 0) totalBytes += child.stats.sizeInBytes)
+      (totalBytes / conf.targetPostShuffleInputSize).toInt
     } else {
       conf.numShufflePartitions
     }
@@ -57,7 +59,7 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
         BroadcastExchangeExec(mode, child)
       case (child, distribution) =>
         val numPartitions = distribution.requiredNumPartitions
-          .getOrElse(defaultNumPreShufflePartitions)
+          .getOrElse(defaultNumPreShufflePartitions(child))
         ShuffleExchangeExec(distribution.createPartitioning(numPartitions), child)
     }
 

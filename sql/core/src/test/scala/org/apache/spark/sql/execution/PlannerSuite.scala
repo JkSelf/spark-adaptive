@@ -315,7 +315,8 @@ class PlannerSuite extends SharedSQLContext {
     }
   }
 
-  test("EnsureRequirements with the initial partition number") {
+  test("EnsureRequirements with the initial partition number that" +
+    " is based on the statistics of leaf node") {
     val distribution = ClusteredDistribution(Literal(1) :: Nil)
     val childPartitioning = HashPartitioning(Literal(2) :: Nil, 1)
 
@@ -330,7 +331,8 @@ class PlannerSuite extends SharedSQLContext {
     withSQLConf(SQLConf.SHUFFLE_TARGET_POSTSHUFFLE_INPUT_SIZE.key -> "1") {
 
       val totalInputFileSize = inputPlan.collectLeaves().map(_.stats.sizeInBytes).sum
-      val expectedNum = (totalInputFileSize / conf.targetPostShuffleInputSize + 1).toInt
+      val expectedNum = Math.ceil(
+        (totalInputFileSize / conf.targetPostShuffleInputSize).toDouble).toInt
 
       withSQLConf(SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "true") {
         val outputPlan = EnsureRequirements(spark.sessionState.conf).apply(inputPlan)

@@ -38,7 +38,7 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
   private def defaultNumPreShufflePartitions(child: SparkPlan): Int =
     if (conf.adaptiveExecutionEnabled) {
       val totalInputFileSize = child.collectLeaves().map(_.stats.sizeInBytes).sum
-      (totalInputFileSize / conf.targetPostShuffleInputSize + 1).toInt
+      Math.ceil((totalInputFileSize / conf.targetPostShuffleInputSize).toDouble).toInt
     } else {
       conf.numShufflePartitions
     }

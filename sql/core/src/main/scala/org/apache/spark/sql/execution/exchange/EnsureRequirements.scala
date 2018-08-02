@@ -37,10 +37,8 @@ import org.apache.spark.sql.internal.SQLConf
 case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
   private def defaultNumPreShufflePartitions(child: SparkPlan): Int =
     if (conf.adaptiveExecutionEnabled) {
-      var totalBytes: BigInt = 0
-      // Count the statistics of leaf node
-      child.foreach(child => if (child.children.length == 0) totalBytes += child.stats.sizeInBytes)
-      (totalBytes / conf.targetPostShuffleInputSize).toInt
+      val totalInputFileSize = child.collectLeaves().map(_.stats.sizeInBytes).sum
+      (totalInputFileSize / conf.targetPostShuffleInputSize + 1).toInt
     } else {
       conf.numShufflePartitions
     }
@@ -60,7 +58,7 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
         BroadcastExchangeExec(mode, child)
       case (child, distribution) =>
         val numPartitions = distribution.requiredNumPartitions
-          .getOrElse(defaultNumPreShufflePartitions(child))
+          .getOrElse(defaultNumPreShufflePartitions(operator))
         ShuffleExchangeExec(distribution.createPartitioning(numPartitions), child)
     }
 

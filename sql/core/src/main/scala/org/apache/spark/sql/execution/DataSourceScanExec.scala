@@ -74,7 +74,11 @@ trait DataSourceScanExec extends LeafExecNode with CodegenSupport {
   }
 
   override def computeStats(): Statistics = {
-    Statistics(sizeInBytes = relation.sizeInBytes)
+    // There should be some overhead in Row object, the size should not be zero when there is
+    // no columns, this help to prevent divide-by-zero error.
+    val neededColumnRowSize = this.output.map(_.dataType.defaultSize).sum + 8
+    val allColumnRowSize = relation.schema.map(_.dataType.defaultSize).sum + 8
+    Statistics(sizeInBytes = (relation.sizeInBytes * neededColumnRowSize / allColumnRowSize))
   }
 }
 

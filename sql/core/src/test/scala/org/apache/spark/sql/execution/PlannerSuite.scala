@@ -334,7 +334,8 @@ class PlannerSuite extends SharedSQLContext {
       val expectedNum = Math.ceil(
         (totalInputFileSize / conf.targetPostShuffleInputSize).toDouble).toInt
 
-      withSQLConf(SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "true") {
+      withSQLConf(SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "true",
+        SQLConf.ADAPTIVE_EXECUTION_AUTOCALCULATEINITIALPARTITIONNUM.key -> "true") {
         val outputPlan = EnsureRequirements(spark.sessionState.conf).apply(inputPlan)
         outputPlan.collect{
           case plan : ShuffleExchangeExec =>

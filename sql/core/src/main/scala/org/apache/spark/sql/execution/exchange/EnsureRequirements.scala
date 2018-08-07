@@ -35,13 +35,29 @@ import org.apache.spark.sql.internal.SQLConf
  * the input partition ordering requirements are met.
  */
 case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
-  private def defaultNumPreShufflePartitions(child: SparkPlan): Int =
+  private def defaultNumPreShufflePartitions(plan: SparkPlan): Int =
     if (conf.adaptiveExecutionEnabled) {
-      val totalInputFileSize = child.collectLeaves().map(_.stats.sizeInBytes).sum
-      Math.ceil((totalInputFileSize / conf.targetPostShuffleInputSize).toDouble).toInt
+      if (conf.adaptiveAutoCalculateInitialPartitionNum) {
+        autoCalculateInitialPartitionNum(plan)
+      } else {
+        conf.maxNumPostShufflePartitions
+      }
     } else {
       conf.numShufflePartitions
     }
+
+  private def autoCalculateInitialPartitionNum(plan: SparkPlan): Int = {
+    val totalInputFileSize = plan.collectLeaves().map(_.stats.sizeInBytes).sum
+    val autoInitialPartitionsNum = Math.ceil(
+      (totalInputFileSize / conf.targetPostShuffleInputSize).toDouble).toInt
+    if (autoInitialPartitionsNum < conf.minNumPostShufflePartitions) {
+      conf.minNumPostShufflePartitions
+    } else if (autoInitialPartitionsNum > conf.maxNumPostShufflePartitions) {
+      conf.maxNumPostShufflePartitions
+    } else {
+      autoInitialPartitionsNum
+    }
+  }
 
   private def ensureDistributionAndOrdering(operator: SparkPlan): SparkPlan = {
     val requiredChildDistributions: Seq[Distribution] = operator.requiredChildDistribution

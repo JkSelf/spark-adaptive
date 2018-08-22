@@ -109,7 +109,9 @@ abstract class QueryStage extends UnaryExecNode {
     }
     val childMapOutputStatistics = queryStageInputs.map(_.childStage.mapOutputStatistics)
       .filter(_ != null).toArray
-    if (childMapOutputStatistics.length > 0) {
+    // Make sure we do get the same number of pre-shuffle partitions for those stages.
+    if (childMapOutputStatistics.length > 0 &&
+      childMapOutputStatistics.map(stats => stats.bytesByPartitionId.length).distinct.length == 1) {
       val exchangeCoordinator = new ExchangeCoordinator(
         conf.targetPostShuffleInputSize,
         conf.adaptiveTargetPostShuffleRowCount,

@@ -103,7 +103,7 @@ class ExchangeCoordinator(
 
     // Make sure we do get the same number of pre-shuffle partitions for those stages.
     val distinctNumPreShufflePartitions =
-    mapOutputStatistics.map(stats => stats.bytesByPartitionId.length).distinct
+      mapOutputStatistics.map(stats => stats.bytesByPartitionId.length).distinct
     // The reason that we are expecting a single value of the number of pre-shuffle partitions
     // is that when we add Exchanges, we set the number of pre-shuffle partitions
     // (i.e. map output partitions) using a static setting, which is the value of

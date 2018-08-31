@@ -77,8 +77,10 @@ trait DataSourceScanExec extends LeafExecNode with CodegenSupport {
     // There should be some overhead in Row object, the size should not be zero when there is
     // no columns, this help to prevent divide-by-zero error.
     val neededColumnRowSize = this.output.map(_.dataType.defaultSize).sum + 8
-    val allColumnRowSize = relation.schema.map(_.dataType.defaultSize).sum + 8
-    Statistics(sizeInBytes = (relation.sizeInBytes * neededColumnRowSize / allColumnRowSize))
+    val dataSchema = sqlContext.sparkSession.sessionState.catalog.getTableMetadata(
+      tableIdentifier.get).dataSchema
+    val allColumnRowSize = dataSchema.map(_.dataType.defaultSize).sum + 8
+    Statistics(sizeInBytes = ((relation.sizeInBytes * neededColumnRowSize) / allColumnRowSize))
   }
 }
 

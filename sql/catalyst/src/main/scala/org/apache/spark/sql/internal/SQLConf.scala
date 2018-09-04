@@ -304,7 +304,7 @@ object SQLConf {
         "must be a positive integer.")
       .createWithDefault(500)
 
-  val ADAPTIVE_EXECUTION_AUTOCALCULATEINITIALPARTITIONNUM =
+  val ADAPTIVE_EXECUTION_AUTO_CALCULATE_INITIAL_PARTITION_NUM =
     buildConf("spark.sql.adaptive.autoCalculateInitialPartitionNum")
       .doc("When true and adaptive execution is enabled," +
         " spark will calculate the initial partition number" +
@@ -1374,7 +1374,7 @@ class SQLConf extends Serializable with Logging {
   def maxNumPostShufflePartitions: Int = getConf(SHUFFLE_MAX_NUM_POSTSHUFFLE_PARTITIONS)
 
   def adaptiveAutoCalculateInitialPartitionNum: Boolean =
-    getConf(ADAPTIVE_EXECUTION_AUTOCALCULATEINITIALPARTITIONNUM)
+    getConf(ADAPTIVE_EXECUTION_AUTO_CALCULATE_INITIAL_PARTITION_NUM)
 
   def minBatchesToRetain: Int = getConf(MIN_BATCHES_TO_RETAIN)
 

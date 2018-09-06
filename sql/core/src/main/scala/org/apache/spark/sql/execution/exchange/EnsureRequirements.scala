@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.execution.exchange
 
+
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.catalyst.expressions._
@@ -49,7 +50,7 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
   private def autoCalculateInitialPartitionNum(plan: SparkPlan): Int = {
     val totalInputFileSize = plan.collectLeaves().map(_.stats.sizeInBytes).sum
     val autoInitialPartitionsNum = Math.ceil(
-      (totalInputFileSize / conf.targetPostShuffleInputSize).toDouble).toInt
+      totalInputFileSize.toLong * 1.0 / conf.targetPostShuffleInputSize).toInt
     if (autoInitialPartitionsNum < conf.minNumPostShufflePartitions) {
       conf.minNumPostShufflePartitions
     } else if (autoInitialPartitionsNum > conf.maxNumPostShufflePartitions) {
@@ -59,7 +60,7 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
     }
   }
 
-  private def ensureDistributionAndOrdering(operator: SparkPlan): SparkPlan = {
+  private def ensureDistributionAndOrdering(operator: SparkPlan, rootNode: SparkPlan): SparkPlan = {
     val requiredChildDistributions: Seq[Distribution] = operator.requiredChildDistribution
     val requiredChildOrderings: Seq[Seq[SortOrder]] = operator.requiredChildOrdering
     var children: Seq[SparkPlan] = operator.children
@@ -74,7 +75,7 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
         BroadcastExchangeExec(mode, child)
       case (child, distribution) =>
         val numPartitions = distribution.requiredNumPartitions
-          .getOrElse(defaultNumPreShufflePartitions(operator))
+          .getOrElse(defaultNumPreShufflePartitions(rootNode))
         ShuffleExchangeExec(distribution.createPartitioning(numPartitions), child)
     }
 
@@ -203,14 +204,19 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
     }
   }
 
-  def apply(plan: SparkPlan): SparkPlan = plan.transformUp {
-    // TODO: remove this after we create a physical operator for `RepartitionByExpression`.
-    case operator @ ShuffleExchangeExec(upper: HashPartitioning, child) =>
-      child.outputPartitioning match {
-        case lower: HashPartitioning if upper.semanticEquals(lower) => child
-        case _ => operator
-      }
-    case operator: SparkPlan =>
-      ensureDistributionAndOrdering(reorderJoinPredicates(operator))
+  def apply(plan: SparkPlan): SparkPlan = {
+    // Record the rootNode is order to collect all the leaves node of the rootNode
+    // when calculate the initial partition num
+    val rootNode = plan;
+    plan.transformUp {
+      // TODO: remove this after we create a physical operator for `RepartitionByExpression`.
+      case operator @ ShuffleExchangeExec(upper: HashPartitioning, child) =>
+        child.outputPartitioning match {
+          case lower: HashPartitioning if upper.semanticEquals(lower) => child
+          case _ => operator
+        }
+      case operator: SparkPlan =>
+        ensureDistributionAndOrdering(reorderJoinPredicates(operator), rootNode)
+    }
   }
 }

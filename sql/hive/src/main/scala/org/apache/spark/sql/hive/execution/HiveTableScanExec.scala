@@ -218,7 +218,7 @@ case class HiveTableScanExec(
   override def computeStats(): Statistics = {
     // There should be some overhead in Row object, the size should not be zero when there is
     // no columns, this help to prevent divide-by-zero error.
-    val outputRowSize = this.output.map(_.dataType.defaultSize).sum + 8
+    val outputRowSize = output.map(_.dataType.defaultSize).sum + 8
     val totalRowSize = relation.tableMeta.dataSchema.map(_.dataType.defaultSize).sum + 8
     // For the partition table, we only get the selected partition statistics
     val sizeInBytes = if (relation.isPartitioned && rawPartitions.nonEmpty) {

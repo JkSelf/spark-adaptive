@@ -332,7 +332,7 @@ class PlannerSuite extends SharedSQLContext {
 
       val totalInputFileSize = inputPlan.collectLeaves().map(_.stats.sizeInBytes).sum
       val expectedNum = Math.ceil(
-        (totalInputFileSize / conf.targetPostShuffleInputSize).toDouble).toInt
+        totalInputFileSize.toLong * 1.0 / conf.targetPostShuffleInputSize).toInt
 
       withSQLConf(SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "true",
         SQLConf.ADAPTIVE_EXECUTION_AUTO_CALCULATE_INITIAL_PARTITION_NUM.key -> "true") {

@@ -67,33 +67,38 @@ case class OptimizeInitialPartitionNum(conf: SQLConf) extends Rule[SparkPlan] {
             val sameSchema = reuseStages.getOrElseUpdate(
               shuffleQueryStage.child.schema, ArrayBuffer[ShuffleQueryStage]())
             val samePlan = sameSchema.find { s => shuffleQueryStage.child.sameResult(s.child) }
+            val child = shuffleQueryStage.child.asInstanceOf[ShuffleExchangeExec]
             if (samePlan.isDefined) {
               // the shuffleQueryStage is re-used
-              shuffleQueryStage.outputPartitioning match {
+              child.newPartitioning = child.newPartitioning match {
                 case hash: HashPartitioning =>
                   if (hash.numPartitions < initialPartitionNum) {
                     hash.copy(numPartitions = initialPartitionNum)
+                  } else {
+                    child.newPartitioning
                   }
                 case collection: PartitioningCollection =>
                   collection.partitionings match {
                     case hash: HashPartitioning =>
                       if (hash.numPartitions < initialPartitionNum) {
                         hash.copy(numPartitions = initialPartitionNum)
+                      } else {
+                        child.newPartitioning
                       }
                   }
-                case _ => shuffleQueryStage.outputPartitioning
+                case _ => child.newPartitioning
               }
             } else {
               // the shuffleQueryStage is not re-used
-              shuffleQueryStage.outputPartitioning match {
-                case hash: HashPartitioning => hash.copy(
-                  numPartitions = initialPartitionNum)
+              child.newPartitioning = child.newPartitioning match {
+                case hash: HashPartitioning =>
+                  hash.copy(numPartitions = initialPartitionNum)
                 case collection: PartitioningCollection =>
                   collection.partitionings match {
-                    case hash: HashPartitioning => hash.copy(
-                      numPartitions = initialPartitionNum)
+                    case hash: HashPartitioning =>
+                      hash.copy(numPartitions = initialPartitionNum)
                   }
-                case _ => shuffleQueryStage.outputPartitioning
+                case _ => child.newPartitioning
               }
               sameSchema += shuffleQueryStage
             }
@@ -102,15 +107,16 @@ case class OptimizeInitialPartitionNum(conf: SQLConf) extends Rule[SparkPlan] {
         // "spark.sql.exchange.reuse" is false.
         shuffleQueryStages.foreach {
           shuffleQueryStage: ShuffleQueryStage =>
-            shuffleQueryStage.outputPartitioning match {
-              case hash: HashPartitioning => hash.copy(
-                numPartitions = initialPartitionNum)
+            val child = shuffleQueryStage.child.asInstanceOf[ShuffleExchangeExec]
+            child.newPartitioning = child.newPartitioning match {
+              case hash: HashPartitioning =>
+                hash.copy(numPartitions = initialPartitionNum)
               case collection: PartitioningCollection =>
                 collection.partitionings match {
-                  case hash: HashPartitioning => hash.copy(
-                    numPartitions = initialPartitionNum)
+                  case hash: HashPartitioning =>
+                    hash.copy(numPartitions = initialPartitionNum)
                 }
-              case _ => shuffleQueryStage.outputPartitioning
+              case _ => child.newPartitioning
             }
         }
       }
@@ -129,15 +135,16 @@ case class OptimizeInitialPartitionNum(conf: SQLConf) extends Rule[SparkPlan] {
         val max = shuffleQueryStages.map(_.outputPartitioning.numPartitions).max
         shuffleQueryStages.foreach {
           shuffleQueryStage: ShuffleQueryStage =>
-            shuffleQueryStage.outputPartitioning match {
-              case hash: HashPartitioning => hash.copy(
-                numPartitions = max)
+            val child = shuffleQueryStage.child.asInstanceOf[ShuffleExchangeExec]
+            child.newPartitioning = child.newPartitioning match {
+              case hash: HashPartitioning =>
+                hash.copy(numPartitions = max)
               case collection: PartitioningCollection =>
                 collection.partitionings match {
-                  case hash: HashPartitioning => hash.copy(
-                    numPartitions = max)
+                  case hash: HashPartitioning =>
+                    hash.copy(numPartitions = max)
                 }
-              case _ => shuffleQueryStage.outputPartitioning
+              case _ => child.newPartitioning
             }
         }
       }

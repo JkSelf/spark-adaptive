@@ -170,19 +170,29 @@ abstract class QueryStage extends UnaryExecNode {
     }
     cachedRDD
   }
+  private var prepared = false
 
-  override def executeCollect(): Array[InternalRow] = {
-    prepareExecuteStage()
+  override def executeCollect(): Array[InternalRow] = synchronized {
+    if (!prepared) {
+      prepareExecuteStage()
+      prepared = true
+    }
     child.executeCollect()
   }
 
-  override def executeToIterator(): Iterator[InternalRow] = {
-    prepareExecuteStage()
+  override def executeToIterator(): Iterator[InternalRow] = synchronized {
+    if (!prepared) {
+      prepareExecuteStage()
+      prepared = true
+    }
     child.executeToIterator()
   }
 
-  override def executeTake(n: Int): Array[InternalRow] = {
-    prepareExecuteStage()
+  override def executeTake(n: Int): Array[InternalRow] = synchronized {
+    if (!prepared) {
+      prepareExecuteStage()
+      prepared = true
+    }
     child.executeTake(n)
   }
 

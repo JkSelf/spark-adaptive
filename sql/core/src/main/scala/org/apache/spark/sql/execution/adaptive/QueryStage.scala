@@ -93,11 +93,10 @@ abstract class QueryStage extends UnaryExecNode {
    * we do a codegen for this query stage and update the UI with the new plan.
    */
   def prepareExecuteStage(): Unit = synchronized {
-    // Ensure the prepareExecuteStage method only be execute once.
+    // Ensure the prepareExecuteStage method only be executed once.
     if (prepared) {
       return
     }
-    prepared = true
     // 1. Execute childStages
     executeChildStages()
 
@@ -159,6 +158,7 @@ abstract class QueryStage extends UnaryExecNode {
         queryExecution.toString,
         SparkPlanInfo.fromSparkPlan(queryExecution.executedPlan)))
     }
+    prepared = true
   }
 
   // Caches the created ShuffleRowRDD so we can reuse that.

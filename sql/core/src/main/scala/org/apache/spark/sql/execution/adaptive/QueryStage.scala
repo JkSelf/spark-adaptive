@@ -85,12 +85,19 @@ abstract class QueryStage extends UnaryExecNode {
       Future.sequence(shuffleStageFutures)(implicitly, QueryStage.executionContext), Duration.Inf)
   }
 
+  private var prepared = false
+
   /**
    * Before executing the plan in this query stage, we execute all child stages, optimize the plan
    * in this stage and determine the reducer number based on the child stages' statistics. Finally
    * we do a codegen for this query stage and update the UI with the new plan.
    */
-  def prepareExecuteStage(): Unit = {
+  def prepareExecuteStage(): Unit = synchronized {
+    // Ensure the prepareExecuteStage method only be execute once.
+    if (prepared) {
+      return
+    }
+    prepared = true
     // 1. Execute childStages
     executeChildStages()
 
@@ -170,29 +177,19 @@ abstract class QueryStage extends UnaryExecNode {
     }
     cachedRDD
   }
-  private var prepared = false
 
-  override def executeCollect(): Array[InternalRow] = synchronized {
-    if (!prepared) {
-      prepareExecuteStage()
-      prepared = true
-    }
+  override def executeCollect(): Array[InternalRow] = {
+    prepareExecuteStage()
     child.executeCollect()
   }
 
-  override def executeToIterator(): Iterator[InternalRow] = synchronized {
-    if (!prepared) {
-      prepareExecuteStage()
-      prepared = true
-    }
+  override def executeToIterator(): Iterator[InternalRow] = {
+    prepareExecuteStage()
     child.executeToIterator()
   }
 
-  override def executeTake(n: Int): Array[InternalRow] = synchronized {
-    if (!prepared) {
-      prepareExecuteStage()
-      prepared = true
-    }
+  override def executeTake(n: Int): Array[InternalRow] = {
+    prepareExecuteStage()
     child.executeTake(n)
   }
 

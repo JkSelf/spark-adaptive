@@ -159,9 +159,8 @@ private[hive] class HiveMetastoreCatalog(sparkSession: SparkSession) extends Log
           val sizeInBytes = if (relation.isPartitioned && relation.stats.sizeInBytes.toLong == Long.MaxValue) {
             val partitions = sparkSession.sharedState.externalCatalog.listPartitions(
               tableIdentifier.database, tableIdentifier.name)
-            val size = if (partitions.filter(
-              _.parameters.contains(StatsSetupConst.TOTAL_SIZE)).length == partitions.length) {
-              partitions.map(_.parameters.get(StatsSetupConst.TOTAL_SIZE).get.toLong).sum
+            val size = if (partitions.forall(_.parameters.contains(StatsSetupConst.TOTAL_SIZE))) {
+              partitions.map(_.parameters(StatsSetupConst.TOTAL_SIZE).toLong).sum
             } else {
               Long.MaxValue
             }

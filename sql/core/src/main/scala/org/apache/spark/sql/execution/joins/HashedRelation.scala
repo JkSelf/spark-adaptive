@@ -421,7 +421,8 @@ private[execution] final class LongToUnsafeRowMap(val mm: TaskMemoryManager,
       var n = 1
       while (n < capacity) n *= 2
       ensureAcquireMemory(n * 2L * 8 + (1 << 20))
-      array = new Array[Long](n * 2)
+      // increase the array length by 1.25x in init method
+      array = new Array[Long]((n * 2 * 1.25).toInt)
       mask = n * 2 - 2
       if (estimatePageSize > 0) {
         page = new Array[Long](estimatePageSize)
@@ -580,8 +581,8 @@ private[execution] final class LongToUnsafeRowMap(val mm: TaskMemoryManager,
       array(pos) = key
       array(pos + 1) = address
       numKeys += 1
-      if (numKeys * 4 > array.length) {
-        // reach half of the capacity
+      if (numKeys * 8 > array.length * 3) {
+        // reach 0.75f of the capacity to prevent the array grow
         if (array.length < (1 << 30)) {
           // Cannot allocate an array with 2G elements
           growArray()

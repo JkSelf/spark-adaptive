@@ -84,11 +84,6 @@ case class BroadcastExchangeExec(
 
           val beforeBuild = System.nanoTime()
           longMetric("collectTime") += (beforeBuild - beforeCollect) / 1000000
-
-          // Call the GC method to free more available memory
-          // and then prevent the oom issue when build the hash table
-          System.gc()
-
           // Construct the relation.
           val relation = mode.transform(input, Some(numRows), estimatedPageSize)
 

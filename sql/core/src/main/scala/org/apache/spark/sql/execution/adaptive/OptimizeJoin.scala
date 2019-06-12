@@ -40,7 +40,23 @@ case class OptimizeJoin(conf: SQLConf) extends Rule[SparkPlan] {
   }
 
   private def canBroadcast(plan: SparkPlan): Boolean = {
-    plan.stats.sizeInBytes >= 0 && plan.stats.sizeInBytes <= conf.adaptiveBroadcastJoinThreshold
+    // In order to prevent the OOM when building hash table,
+    // here we use the row count to check whether the smj is converted to bhj.
+    // And we need to set spark.shuffle.statistics.verbose to
+    // true to collect the row count in runtime.
+    val shuffleQueryStages: Seq[ShuffleQueryStage] = plan.collect {
+      case sqs: ShuffleQueryStageInput => sqs.childStage
+    }
+
+    val rowCounts: Long = shuffleQueryStages.map({
+      shuffleQueryStage =>
+        if (shuffleQueryStage.mapOutputStatistics != null
+          && shuffleQueryStage.mapOutputStatistics.recordsByPartitionId.nonEmpty) {
+          shuffleQueryStage.mapOutputStatistics.recordsByPartitionId.sum
+        } else 0
+    }).sum
+
+    rowCounts > 0 && rowCounts < conf.adaptiveBroadcastJoinRowCountThreshold
   }
 
   private def removeSort(plan: SparkPlan): SparkPlan = {

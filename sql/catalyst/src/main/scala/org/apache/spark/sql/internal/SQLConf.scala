@@ -271,6 +271,13 @@ object SQLConf {
     .longConf
     .createOptional
 
+  val ADAPTIVE_BROADCASTJOIN_ROW_COUNT_THRESHOLD =
+    buildConf("spark.sql.adaptiveBroadcastJoinRowCountThreshold")
+      .doc("Configures the row counts of a table that will be" +
+        " broadcast to all worker nodes when performing a join in adaptive execution mode")
+      .longConf
+      .createWithDefault(100000000L) // 1 million
+
   val ADAPTIVE_EXECUTION_ALLOW_ADDITIONAL_SHUFFLE =
     buildConf("spark.sql.adaptive.allowAdditionalShuffle")
       .doc("When true, additional shuffles are allowed during plan optimizations in adaptive " +
@@ -1721,6 +1728,9 @@ class SQLConf extends Serializable with Logging {
 
   def adaptiveBroadcastJoinThreshold: Long =
     getConf(ADAPTIVE_BROADCASTJOIN_THRESHOLD).getOrElse(autoBroadcastJoinThreshold)
+
+  def adaptiveBroadcastJoinRowCountThreshold: Long =
+    getConf(ADAPTIVE_BROADCASTJOIN_ROW_COUNT_THRESHOLD)
 
   def adaptiveAllowAdditionShuffle: Boolean = getConf(ADAPTIVE_EXECUTION_ALLOW_ADDITIONAL_SHUFFLE)
 

@@ -40,23 +40,19 @@ case class OptimizeJoin(conf: SQLConf) extends Rule[SparkPlan] {
   }
 
   private def canBroadcast(plan: SparkPlan): Boolean = {
-    // In order to prevent the OOM when building hash table,
-    // here we use the row count to check whether the smj is converted to bhj.
-    // And we need to set spark.shuffle.statistics.verbose to
-    // true to collect the row count in runtime.
-    val shuffleQueryStages: Seq[ShuffleQueryStage] = plan.collect {
-      case sqs: ShuffleQueryStageInput => sqs.childStage
+    // In order to prevent the OOM issue when building hash table,
+    // we add the estimation raw size condition based on the row counts.
+    val compressedSizeCheck = plan.stats.sizeInBytes >= 0 &&
+      plan.stats.sizeInBytes <= conf.adaptiveBroadcastJoinThreshold
+    if (!compressedSizeCheck && conf.adaptiveBroadcastJoinRawSizeThreshold == -1) {
+      return false
     }
 
-    val rowCounts: Long = shuffleQueryStages.map({
-      shuffleQueryStage =>
-        if (shuffleQueryStage.mapOutputStatistics != null
-          && shuffleQueryStage.mapOutputStatistics.recordsByPartitionId.nonEmpty) {
-          shuffleQueryStage.mapOutputStatistics.recordsByPartitionId.sum
-        } else 0
-    }).sum
-
-    rowCounts > 0 && rowCounts < conf.adaptiveBroadcastJoinRowCountThreshold
+    val rowCounts: Long = if (plan.stats.recordStatistics.nonEmpty) {
+      plan.stats.recordStatistics.get.record.toLong
+    } else -1
+    val rawSize = rowCounts * (plan.output.map(_.dataType.defaultSize).sum)
+    rawSize >= 0 && rawSize < conf.adaptiveBroadcastJoinRawSizeThreshold
   }
 
   private def removeSort(plan: SparkPlan): SparkPlan = {

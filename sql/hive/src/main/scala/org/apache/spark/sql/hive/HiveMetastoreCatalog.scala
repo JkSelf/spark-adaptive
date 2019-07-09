@@ -156,7 +156,12 @@ private[hive] class HiveMetastoreCatalog(sparkSession: SparkSession) extends Log
         val logicalRelation = cached.getOrElse {
           // for the partition table, the relation.stats.sizeInBytes is Long.max
           // not the real size in hdfs
-          val sizeInBytes = if (relation.isPartitioned && relation.stats.sizeInBytes.toLong == Long.MaxValue) {
+          val sizeInBytes = if (relation.isPartitioned &&
+            relation.stats.sizeInBytes.toLong == Long.MaxValue &&
+            (sparkSession.sqlContext.conf.adaptiveExecutionEnabled
+              && sparkSession.sqlContext.conf.adaptivePartitionedTableSizeEnabled)) {
+            // The collecting operator is time consuming when the partitioned table is big,
+            // so we add a configuration to enable or disable this feature.
             val partitions = sparkSession.sharedState.externalCatalog.listPartitions(
               tableIdentifier.database, tableIdentifier.name)
             val size = if (partitions.forall(_.parameters.contains(StatsSetupConst.TOTAL_SIZE))) {

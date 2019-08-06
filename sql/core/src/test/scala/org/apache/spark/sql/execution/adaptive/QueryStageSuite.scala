@@ -22,7 +22,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.internal.config
 import org.apache.spark.sql._
-import org.apache.spark.sql.execution.joins.{BroadcastHashJoinExec, SortMergeJoinExec}
+import org.apache.spark.sql.execution.joins.{BroadcastHashJoinExec, ShuffledHashJoinExec, SortMergeJoinExec}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
 
@@ -107,6 +107,35 @@ class QueryStageSuite extends SparkFunSuite with BeforeAndAfterAll {
     }
     assert(queryStageInputs.length === 2)
     assert(queryStageInputs.forall(_.isLocalShuffle) === true)
+  }
+
+  def checkHashJoin(join: DataFrame, spark: SparkSession): Unit = {
+    // Before Execution, there is one SortMergeJoin
+    val smjBeforeExecution = join.queryExecution.executedPlan.collect {
+      case smj: SortMergeJoinExec => smj
+    }
+    assert(smjBeforeExecution.length === 1)
+
+    // Check the answer.
+    val expectedAnswer =
+      spark
+        .range(0, 2000)
+        .selectExpr("id % 1000 as key", "id as value")
+        .union(spark.range(0, 2000).selectExpr("id % 1000 as key", "id as value"))
+    checkAnswer(
+      join,
+      expectedAnswer.collect())
+
+    // During execution, the SortMergeJoin is changed to ShuffledHashJoinExec
+    val smjAfterExecution = join.queryExecution.executedPlan.collect {
+      case smj: SortMergeJoinExec => smj
+    }
+    assert(smjAfterExecution.length === 0)
+
+    val numShjAfterExecution = join.queryExecution.executedPlan.collect {
+      case smj: ShuffledHashJoinExec => smj
+    }.length
+    assert(numShjAfterExecution === 1)
   }
 
   test("1 sort merge join to broadcast join") {
@@ -398,6 +427,28 @@ class QueryStageSuite extends SparkFunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("1 sort merge join to shuffled hash join") {
+    val spark = defaultSparkSession
+    spark.conf.set(SQLConf.ADAPTIVE_EXECUTION_HASHJOIN_ENABLED.key, "true")
+    spark.conf.set(SQLConf.ADAPTIVE_EXECUTION_HASHJOIN_FACTOR.key, "1")
+    withSparkSession(spark) { spark: SparkSession =>
+      val df1 =
+        spark
+          .range(0, 2000, 1, numInputPartitions)
+          .selectExpr("id % 1000 as key1", "id as value1")
+      val df2 =
+        spark
+          .range(0, 2000, 1, numInputPartitions)
+          .selectExpr("id % 1000 as key2", "id as value2")
+
+      val innerJoin = df1.join(df2, col("key1") === col("key2")).select(col("key1"), col("value2"))
+      checkHashJoin(innerJoin, spark)
+
+      val leftJoin =
+        df1.join(df2, col("key1") === col("key2"), "left").select(col("key1"), col("value1"))
+      checkHashJoin(leftJoin, spark)
+    }
+  }
 
   test("Reuse QueryStage in adaptive execution") {
     withSparkSession(defaultSparkSession) { spark: SparkSession =>
